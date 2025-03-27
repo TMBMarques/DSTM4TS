@@ -13,9 +13,9 @@ from Models.interpretable_diffusion.model_utils import unnormalize_to_zero_to_on
 
 from pathlib import Path
 
-def run_diffusion_model():
+def run_diffusion_model(df):
 
-    folder = Path("Checkpoints_sine_24")
+    folder = Path("Checkpoints_room_temperature_24")
 
     # Train the model if it was not already trained
 
@@ -25,7 +25,7 @@ def run_diffusion_model():
 
         class Args_Example:
             def __init__(self) -> None:
-                self.config_path = './diffusion_model/Config/sines.yaml'
+                self.config_path = './diffusion_model/Config/room_temperature.yaml'
                 self.save_dir = './diffusion_model/toy_exp'
                 self.gpu = 0
                 os.makedirs(self.save_dir, exist_ok=True)
@@ -47,7 +47,7 @@ def run_diffusion_model():
     class Args_Example:
         def __init__(self) -> None:
             self.gpu = 0
-            self.config_path = './diffusion_model/Config/sines.yaml'
+            self.config_path = './diffusion_model/Config/room_temperature.yaml'
             self.save_dir = './diffusion_model/toy_exp'
             self.mode = 'infill'
             self.missing_ratio = 0.5
@@ -73,17 +73,18 @@ def run_diffusion_model():
     seq_length, feature_dim = dataset.window, dataset.var_num
     samples, ori_data, masks = trainer.restore(dataloader, [seq_length, feature_dim], coef, stepsize, sampling_steps)
 
-    if dataset.auto_norm:
-        samples = unnormalize_to_zero_to_one(samples)
+    """ if dataset.auto_norm:
+        samples = unnormalize_to_zero_to_one(samples) """
 
     # Ploting the results
 
-    plt.rcParams["font.size"] = 12
+    """ plt.rcParams["font.size"] = 12
     fig, axes = plt.subplots(nrows=5, ncols=1, figsize=(12, 15))
 
-    ori_data = np.load(os.path.join(dataset.dir, f"sine_ground_truth_{seq_length}_test.npy"))
-    # ori_data = np.load(os.path.join(dataset.dir, f"{dataset_name}_norm_truth_{seq_length}_test.npy"))  # Uncomment the line if dataset other than Sine is used.
-    masks = np.load(os.path.join(dataset.dir, f"sine_masking_{seq_length}.npy"))
+    #ori_data = np.load(os.path.join(dataset.dir, f"sine_ground_truth_{seq_length}_test.npy"))
+    ori_data = np.load(os.path.join(dataset.dir, f"room_temperature_norm_truth_{seq_length}_test.npy"))  # Uncomment the line if dataset other than Sine is used.
+    #masks = np.load(os.path.join(dataset.dir, f"sine_masking_{seq_length}.npy"))
+    masks = np.load(os.path.join(dataset.dir, f"room_temperature_masking_{seq_length}.npy"))
     sample_num, seq_len, feat_dim = ori_data.shape
     observed = ori_data * masks
 
@@ -97,12 +98,24 @@ def run_diffusion_model():
         df_o = df_o[df_o.y!=0]
         axes[feat_idx].plot(df_o.x, df_o.val, color='b', marker='o', linestyle='None')
         axes[feat_idx].plot(df_x.x, df_x.val, color='r', marker='x', linestyle='None')
-        axes[feat_idx].plot(range(0, seq_len), samples[0, :, feat_idx], color='g', linestyle='solid', label='Diffusion-TS')
+        #axes[feat_idx].plot(range(0, seq_len), samples[0, :, feat_idx], color='g', linestyle='solid', label='Diffusion-TS')
         plt.setp(axes[feat_idx], ylabel='value')
         if feat_idx == feat_dim-1:
             plt.setp(axes[-1], xlabel='time')
 
-    plt.show()
+    plt.show() """
+
+    samples = unnormalize_to_zero_to_one(samples)
+    samples = dataset.scaler.inverse_transform(samples.reshape(-1, samples.shape[-1])).reshape(samples.shape)
+    ori_data = unnormalize_to_zero_to_one(ori_data)
+    ori_data = dataset.scaler.inverse_transform(ori_data.reshape(-1, ori_data.shape[-1])).reshape(ori_data.shape)
+
+    with open("samples.txt", "w") as file:
+        file.write(str(samples))
+
+    with open("ori_data.txt", "w") as file:
+        file.write(str(ori_data))
+
 
 if __name__ == '__main__':
     run_diffusion_model()

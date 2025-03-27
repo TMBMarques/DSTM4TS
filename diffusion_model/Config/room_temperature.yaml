@@ -2,8 +2,8 @@ model:
   target: Models.interpretable_diffusion.gaussian_diffusion.Diffusion_TS
   params:
     seq_length: 24
-    feature_size: 5
-    n_layer_enc: 1
+    feature_size: 1
+    n_layer_enc: 3
     n_layer_dec: 2
     d_model: 64  # 4 X 16
     timesteps: 500
@@ -31,7 +31,7 @@ solver:
     target: engine.lr_sch.ReduceLROnPlateauWithWarmup
     params:
       factor: 0.5
-      patience: 3000
+      patience: 4000
       min_lr: 1.0e-5
       threshold: 1.0e-1
       threshold_mode: rel
@@ -41,10 +41,11 @@ solver:
 
 dataloader:
   train_dataset:
-    target: Utils.Data_utils.sine_dataset.SineDataset
+    target: Utils.Data_utils.real_datasets.CustomDataset
     params:
-      num: 10000
-      dim: 5
+      name: room_temperature
+      proportion: 1.0  # Set to rate < 1 if training conditional generation
+      data_root: ./diffusion_model/Data/datasets/room_temperature.csv
       window: 24  # seq_length
       save2npy: True
       neg_one_to_one: True
@@ -52,16 +53,17 @@ dataloader:
       period: train
 
   test_dataset:
-    target: Utils.Data_utils.sine_dataset.SineDataset
+    target: Utils.Data_utils.real_datasets.CustomDataset
     params:
-      num: 1000
-      dim: 5
+      name: room_temperature
+      proportion: 0.7  # rate
+      data_root: ./diffusion_model/Data/datasets/room_temperature.csv
       window: 24  # seq_length
       save2npy: True
       neg_one_to_one: True
       seed: 123
-      style: separate
       period: test
+      style: separate
       distribution: geometric
     coefficient: 1.0e-2
     step_size: 5.0e-2
