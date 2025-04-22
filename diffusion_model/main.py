@@ -13,9 +13,13 @@ from Models.interpretable_diffusion.model_utils import unnormalize_to_zero_to_on
 
 from pathlib import Path
 
-def run_diffusion_model(df):
+import importlib
 
-    folder = Path("Checkpoints_room_temperature_24")
+from pre_trained_models.models import PreTrainedModel
+
+def run_diffusion_model(pre_trained_model, stress_weight, df):
+
+    folder = Path("Checkpoints_room_temperature_72")
 
     # Train the model if it was not already trained
 
@@ -34,13 +38,44 @@ def run_diffusion_model(df):
         configs = load_yaml_config(args.config_path)
         device = torch.device(f'cuda:{args.gpu}' if torch.cuda.is_available() else 'cpu')
 
-        dl_info = build_dataloader(configs, args)
+        #dl_info = build_dataloader(configs, args)
+
+        # - - - build_dataloader - - -
+        batch_size = configs['dataloader']['batch_size']
+        jud = configs['dataloader']['shuffle']
+        configs['dataloader']['train_dataset']['params']['output_dir'] = args.save_dir
+
+        #dataset = instantiate_from_config(config['dataloader']['train_dataset'])
+
+        # - - - instantiate_from_config - - -
+        config = configs['dataloader']['train_dataset']
+        module, cls = config["target"].rsplit(".", 1)
+        cls = getattr(importlib.import_module(module, package=None), cls)
+        dataset = cls(df=df, generating_samples=False, **config.get("params", dict()))
+        # - - - - - -
+
+        dataloader = torch.utils.data.DataLoader(dataset,
+                                                 batch_size=batch_size,
+                                                 shuffle=jud,
+                                                 num_workers=0,
+                                                 pin_memory=True,
+                                                 sampler=None,
+                                                 drop_last=jud)
+
+        dataload_info = {
+            'dataloader': dataloader,
+            'dataset': dataset
+        }
+
+        dl_info = dataload_info
+        # - - - - - -
+
         model = instantiate_from_config(configs['model']).to(device)
         trainer = Trainer(config=configs, args=args, model=model, dataloader=dl_info)
 
         # Training model
 
-        trainer.train()
+        trainer.train(pre_trained_model, stress_weight)
 
     # Loading the trained model
 
@@ -58,7 +93,38 @@ def run_diffusion_model(df):
     configs = load_yaml_config(args.config_path)
     device = torch.device(f'cuda:{args.gpu}' if torch.cuda.is_available() else 'cpu')
 
-    dl_info = build_dataloader_cond(configs, args)
+    #dl_info = build_dataloader_cond(configs, args)
+
+    # - - - build_dataloader_cond - - -
+    batch_size = configs['dataloader']['sample_size']
+    configs['dataloader']['test_dataset']['params']['output_dir'] = args.save_dir
+    configs['dataloader']['test_dataset']['params']['missing_ratio'] = args.missing_ratio
+
+    #test_dataset = instantiate_from_config(configs['dataloader']['test_dataset'])
+
+    # - - - instantiate_from_config - - -
+    config = configs['dataloader']['test_dataset']
+    module, cls = config["target"].rsplit(".", 1)
+    cls = getattr(importlib.import_module(module, package=None), cls)
+    test_dataset = cls(df=df, generating_samples=True, **config.get("params", dict()))
+    # - - - - - -
+
+    dataloader = torch.utils.data.DataLoader(test_dataset,
+                                             batch_size=batch_size,
+                                             shuffle=False,
+                                             num_workers=0,
+                                             pin_memory=True,
+                                             sampler=None,
+                                             drop_last=False)
+
+    dataload_info = {
+        'dataloader': dataloader,
+        'dataset': test_dataset
+    }
+
+    dl_info = dataload_info
+    # - - - - - -
+
     model = instantiate_from_config(configs['model']).to(device)
     trainer = Trainer(config=configs, args=args, model=model, dataloader=dl_info)
 
@@ -111,10 +177,30 @@ def run_diffusion_model(df):
     ori_data = dataset.scaler.inverse_transform(ori_data.reshape(-1, ori_data.shape[-1])).reshape(ori_data.shape)
 
     with open("samples.txt", "w") as file:
-        file.write(str(samples))
+        file.write(np.array2string(samples, threshold=np.inf, separator=", "))
 
     with open("ori_data.txt", "w") as file:
-        file.write(str(ori_data))
+        file.write(np.array2string(ori_data, threshold=np.inf, separator=", "))
+    
+    # Plot
+
+    # Get sequence length and number of features
+    seq_len, feat_dim = ori_data.shape[1], ori_data.shape[2]
+
+    # Plot the original data (•) and the samples (x)
+    plt.figure(figsize=(12, 6))
+
+    for feat_idx in range(feat_dim):
+        plt.scatter(range(seq_len), ori_data[0, :, feat_idx], color='b', marker='o', label='Original Data' if feat_idx == 0 else "")
+        plt.scatter(range(seq_len), samples[0, :, feat_idx], color='r', marker='x', label='Generated Samples' if feat_idx == 0 else "")
+
+    plt.xlabel("Time")
+    plt.ylabel("Value")
+    plt.title("Original vs Generated Data")
+    plt.legend()
+    plt.show()
+
+    return samples
 
 
 if __name__ == '__main__':

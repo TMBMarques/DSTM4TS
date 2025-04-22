@@ -1,7 +1,7 @@
 model:
   target: Models.interpretable_diffusion.gaussian_diffusion.Diffusion_TS
   params:
-    seq_length: 24
+    seq_length: 72
     feature_size: 1
     n_layer_enc: 3
     n_layer_dec: 2
@@ -19,10 +19,10 @@ model:
 
 solver:
   base_lr: 1.0e-5
-  max_epochs: 300
+  max_epochs: 5000
   results_folder: ./Checkpoints_room_temperature
   gradient_accumulate_every: 2
-  save_cycle: 30  # max_epochs // 10
+  save_cycle: 500  # max_epochs // 10
   ema:
     decay: 0.995
     update_interval: 10
@@ -44,9 +44,9 @@ dataloader:
     target: Utils.Data_utils.real_datasets.CustomDataset
     params:
       name: room_temperature
-      proportion: 1.0  # Set to rate < 1 if training conditional generation
+      proportion: 0.9  # Set to rate < 1 if training conditional generation
       data_root: ./diffusion_model/Data/datasets/room_temperature.csv
-      window: 24  # seq_length
+      window: 72  # seq_length
       save2npy: True
       neg_one_to_one: True
       seed: 123
@@ -56,9 +56,9 @@ dataloader:
     target: Utils.Data_utils.real_datasets.CustomDataset
     params:
       name: room_temperature
-      proportion: 0.7  # rate
+      proportion: 0.9  # rate
       data_root: ./diffusion_model/Data/datasets/room_temperature.csv
-      window: 24  # seq_length
+      window: 72  # seq_length
       save2npy: True
       neg_one_to_one: True
       seed: 123
@@ -69,6 +69,6 @@ dataloader:
     step_size: 5.0e-2
     sampling_steps: 200
 
-  batch_size: 128
+  batch_size: 64
   sample_size: 256
   shuffle: True

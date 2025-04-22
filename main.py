@@ -8,6 +8,7 @@ import sys
 sys.path.append(os.path.abspath("./diffusion_model"))
 from diffusion_model.main import run_diffusion_model
 
+from pre_trained_models.models import PreTrainedModel
 from pre_trained_models.chronos_bolt import run_chronos_bolt
 
 horizon_length = 24
@@ -37,7 +38,7 @@ def load_dataset():
 
     return df
     
-def plot_forecast(df, forecast_df):
+""" def plot_forecast(df, forecast_df):
     # Create a plot
     ax = df.plot(x=df.columns[1], y=df.columns[2], label="Original Data", color="blue")
 
@@ -52,7 +53,37 @@ def plot_forecast(df, forecast_df):
     plt.title("Original Data vs Forecast")
 
     # Show the plot
+    plt.show() """
+
+def plot_forecast(df, modified_df, forecast_df, modified_forecast_df):
+    plt.figure(figsize=(12, 6))
+
+    # Plot original data
+    plt.plot(df["ds"], df["y"], label="Original Data", color="#4a4a4a", linestyle="-")
+
+    # Plot modified context
+    plt.plot(modified_df["ds"], modified_df["y"], label="Modified Context", color="#EC9F05", linestyle="-")
+
+    # Plot original forecast
+    plt.plot(forecast_df["ds"], forecast_df["y"], label="Original Forecast", color="#1098F7", linestyle="-")
+
+    # Plot modified forecast
+    plt.plot(modified_forecast_df["ds"], modified_forecast_df["y"], label="Modified Forecast", color="#BF3100", linestyle="-")
+
+    # Add vertical dashed lines
+    plt.axvline(x=modified_df["ds"].iloc[0], color="#d4d4d4", linestyle="--", label="Modified Context Start")
+    plt.axvline(x=forecast_df["ds"].iloc[0], color="#d4d4d4", linestyle="--", label="Forecast Start")
+
+    # Formatting
+    plt.xlabel("Datetime")
+    plt.ylabel("Value")
+    plt.xticks(rotation=45)
+    plt.title("Original Data vs Modified Context and Forecasts")
+    plt.legend()
+
+    # Show the plot
     plt.show()
+
 
 def evaluate_error(real_data, forecast_data):
     # Get 'y' values
@@ -73,31 +104,28 @@ def main():
     df = load_dataset()
 
     # Get a piece of the dataframe (week) 6864
-    reduced_df = df.iloc[6696:6888].reset_index(drop=True)
+    reduced_df = df.iloc[6240:6408].reset_index(drop=True)
 
     # Get the context (take back the last day that will be forecasted)
-    context_df = reduced_df.iloc[:-24]
+    original_context_df = reduced_df.iloc[:-24]
 
-    #forecast_df = run_timesfm(context_df, horizon_length)
-    """ forecast_df = run_chronos_bolt(context_df, horizon_length)
+    # Run the diffusion model
+    stress_weight = 0
+    samples = run_diffusion_model(PreTrainedModel.CHRONOS_BOLT, stress_weight, original_context_df.copy())
+    print(original_context_df.head())
 
-    plot_forecast(reduced_df, forecast_df)
+    # Consolidate modified context (NOTE: this needs to be changed/improved)
+    diffusion_model_window = 72
+    samples = [sample[0] for sample in samples[diffusion_model_window]] # Pick the corresponding window (4th day, modifications happen on 5th and 6th)
+    modified_context_df = original_context_df.iloc[96:].reset_index(drop=True) # Pick data from the 5th day, where modifications start
+    modified_context_df['y'] = samples[24:] # Ignore the first 24 hours (from 4th day, to only pick the 5th and 6th)
 
-    evaluate_error(reduced_df.tail(24), forecast_df) """
+    # Get predictions
+    original_forecast_df = run_chronos_bolt(original_context_df, horizon_length)
+    modified_forecast_df = run_chronos_bolt(modified_context_df, horizon_length)
 
-    """ args = {
-        "gpu": 0,
-        "config_path": "./Config/sines.yaml",
-        "save_dir": "./toy_exp",
-        "mode": "infill",
-        "missing_ratio": 0.5,
-        "milestone": 10
-    }
-    
-    run_diffusion_model(args)  # Pass the dictionary as an argument """
-
-    run_diffusion_model(context_df)
-
+    # Plot
+    plot_forecast(reduced_df, modified_context_df, original_forecast_df, modified_forecast_df)
 
 if __name__ == "__main__":
     main()

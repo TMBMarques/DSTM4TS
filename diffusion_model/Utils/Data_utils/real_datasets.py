@@ -13,6 +13,8 @@ from Utils.masking_utils import noise_mask
 class CustomDataset(Dataset):
     def __init__(
         self, 
+        df,
+        generating_samples,
         name,
         data_root, 
         window=64, 
@@ -29,59 +31,88 @@ class CustomDataset(Dataset):
         mean_mask_length=3
     ):
         super(CustomDataset, self).__init__()
+        self.df = df
         assert period in ['train', 'test'], 'period must be train or test.'
         if period == 'train':
             assert ~(predict_length is not None or missing_ratio is not None), ''
         self.name, self.pred_len, self.missing_ratio = name, predict_length, missing_ratio
         self.style, self.distribution, self.mean_mask_length = style, distribution, mean_mask_length
-        self.rawdata, self.scaler = self.read_data(data_root, self.name)
+
+        #self.rawdata, self.scaler = self.read_data(data_root, self.name)
+
+        self.df.drop(df.columns[:2], axis=1, inplace=True)
+        self.data = df.values
+        self.scaler = MinMaxScaler()
+        self.scaler = self.scaler.fit(self.data)
+        
         self.dir = os.path.join(output_dir, 'samples')
         os.makedirs(self.dir, exist_ok=True)
 
         self.window, self.period = window, period
-        self.len, self.var_num = self.rawdata.shape[0], self.rawdata.shape[-1]
+        self.len, self.var_num = self.data.shape[0], self.data.shape[-1]
         self.sample_num_total = max(self.len - self.window + 1, 0)
         self.save2npy = save2npy
         self.auto_norm = neg_one_to_one
 
-        self.data = self.__normalize(self.rawdata)
-        train, inference = self.__getsamples(self.data, proportion, seed)
+        self.data = self.__normalize(self.data)
+
+        if generating_samples:
+            inference = self.__getsamples(self.data, proportion, seed, generating_samples)
+        else:
+            train, inference = self.__getsamples(self.data, proportion, seed, generating_samples)
 
         self.samples = train if period == 'train' else inference
         if period == 'test':
-            if missing_ratio is not None:
-                self.masking = self.mask_data(seed)
-            elif predict_length is not None:
-                masks = np.ones(self.samples.shape)
-                masks[:, -predict_length:, :] = 0
-                self.masking = masks.astype(bool)
-            else:
-                raise NotImplementedError()
+            if generating_samples:
+                self.masking = self.mask_data_cutoff((1/3), seed)
+            else:    
+                if missing_ratio is not None:
+                    self.masking = self.mask_data(seed)
+                elif predict_length is not None:
+                    masks = np.ones(self.samples.shape)
+                    masks[:, -predict_length:, :] = 0
+                    self.masking = masks.astype(bool)
+                else:
+                    raise NotImplementedError()
         self.sample_num = self.samples.shape[0]
 
-    def __getsamples(self, data, proportion, seed):
+    def __getsamples(self, data, proportion, seed, generating_samples):
         x = np.zeros((self.sample_num_total, self.window, self.var_num))
         for i in range(self.sample_num_total):
             start = i
             end = i + self.window
             x[i, :, :] = data[start:end, :]
 
-        train_data, test_data = self.divide(x, proportion, seed)
+        if not generating_samples:
+            train_data, test_data = self.divide(x, proportion, seed)
 
+            if self.save2npy:
+                if 1 - proportion > 0:
+                    np.save(os.path.join(self.dir, f"{self.name}_ground_truth_{self.window}_test.npy"), self.unnormalize(test_data))
+                np.save(os.path.join(self.dir, f"{self.name}_ground_truth_{self.window}_train.npy"), self.unnormalize(train_data))
+                if self.auto_norm:
+                    if 1 - proportion > 0:
+                        np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_test.npy"), unnormalize_to_zero_to_one(test_data))
+                    np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_train.npy"), unnormalize_to_zero_to_one(train_data))
+                else:
+                    if 1 - proportion > 0:
+                        np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_test.npy"), test_data)
+                    np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_train.npy"), train_data)
+
+            return train_data, test_data
+        
         if self.save2npy:
             if 1 - proportion > 0:
-                np.save(os.path.join(self.dir, f"{self.name}_ground_truth_{self.window}_test.npy"), self.unnormalize(test_data))
-            np.save(os.path.join(self.dir, f"{self.name}_ground_truth_{self.window}_train.npy"), self.unnormalize(train_data))
+                np.save(os.path.join(self.dir, f"{self.name}_ground_truth_{self.window}_test.npy"), self.unnormalize(data))
             if self.auto_norm:
                 if 1 - proportion > 0:
-                    np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_test.npy"), unnormalize_to_zero_to_one(test_data))
-                np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_train.npy"), unnormalize_to_zero_to_one(train_data))
+                    np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_test.npy"), unnormalize_to_zero_to_one(data))
             else:
                 if 1 - proportion > 0:
-                    np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_test.npy"), test_data)
-                np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_train.npy"), train_data)
+                    np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_test.npy"), data)
 
-        return train_data, test_data
+        return x
+
 
     def normalize(self, sq):
         d = sq.reshape(-1, self.var_num)
@@ -156,6 +187,33 @@ class CustomDataset(Dataset):
         # Restore RNG.
         np.random.set_state(st0)
         return masks.astype(bool)
+    
+    def mask_data_cutoff(self, cutoff_ratio, seed=2023):
+        masks = np.ones_like(self.samples, dtype=bool)  # All True to start
+
+        # Store RNG state
+        st0 = np.random.get_state()
+        np.random.seed(seed)
+
+        for idx in range(self.samples.shape[0]):
+            seq_length = self.samples.shape[1]
+            feat_dim = self.samples.shape[2]
+            
+            cutoff = int(seq_length * cutoff_ratio)
+
+            # Create a mask with True up to cutoff, then False, and keep last value True
+            mask = np.ones((seq_length, feat_dim), dtype=bool)
+            if cutoff < seq_length - 1:
+                mask[cutoff:-1, :] = False
+            mask[-1, :] = True
+
+            masks[idx, :, :] = mask
+
+        if self.save2npy:
+            np.save(os.path.join(self.dir, f"{self.name}_masking_{self.window}.npy"), masks)
+
+        np.random.set_state(st0)
+        return masks
 
     def __getitem__(self, ind):
         if self.period == 'test':

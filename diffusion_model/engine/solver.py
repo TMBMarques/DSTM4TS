@@ -170,6 +170,7 @@ class Trainer(object):
         reals = np.empty([0, shape[0], shape[1]])
         masks = np.empty([0, shape[0], shape[1]])
 
+        # original method ("random" masks)
         for idx, (x, t_m) in enumerate(raw_dataloader):
             x, t_m = x.to(self.device), t_m.to(self.device)
             if sampling_steps == self.model.num_timesteps:
@@ -186,7 +187,6 @@ class Trainer(object):
         if self.logger is not None:
             self.logger.log_info('Imputation done, time: {:.2f}'.format(time.time() - tic))
         return samples, reals, masks
-        # return samples
 
     def forward_sample(self, x_start):
        b, c, h = x_start.shape
