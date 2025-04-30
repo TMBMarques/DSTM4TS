@@ -17,13 +17,14 @@ import importlib
 
 from pre_trained_models.models import PreTrainedModel
 
-def run_diffusion_model(pre_trained_model, stress_weight, df):
+def run_diffusion_model(training, pre_trained_model, stress_weight, loss_forecast, df):
 
-    folder = Path("Checkpoints_room_temperature_72")
+    #folder = Path("Checkpoints_room_temperature_72")
 
     # Train the model if it was not already trained
 
-    if not folder.exists() or not folder.is_dir() or not any(folder.iterdir()):
+    #if not folder.exists() or not folder.is_dir() or not any(folder.iterdir()):
+    if training:
 
         # Build dataset and settings
 
@@ -75,7 +76,9 @@ def run_diffusion_model(pre_trained_model, stress_weight, df):
 
         # Training model
 
-        trainer.train(pre_trained_model, stress_weight)
+        trainer.train(stress_weight, loss_forecast)
+
+        return
 
     # Loading the trained model
 
@@ -173,18 +176,18 @@ def run_diffusion_model(pre_trained_model, stress_weight, df):
 
     samples = unnormalize_to_zero_to_one(samples)
     samples = dataset.scaler.inverse_transform(samples.reshape(-1, samples.shape[-1])).reshape(samples.shape)
-    ori_data = unnormalize_to_zero_to_one(ori_data)
-    ori_data = dataset.scaler.inverse_transform(ori_data.reshape(-1, ori_data.shape[-1])).reshape(ori_data.shape)
+    """ ori_data = unnormalize_to_zero_to_one(ori_data)
+    ori_data = dataset.scaler.inverse_transform(ori_data.reshape(-1, ori_data.shape[-1])).reshape(ori_data.shape) """
 
-    with open("samples.txt", "w") as file:
+    """ with open("samples.txt", "w") as file:
         file.write(np.array2string(samples, threshold=np.inf, separator=", "))
 
     with open("ori_data.txt", "w") as file:
-        file.write(np.array2string(ori_data, threshold=np.inf, separator=", "))
+        file.write(np.array2string(ori_data, threshold=np.inf, separator=", ")) """
     
     # Plot
 
-    # Get sequence length and number of features
+    """ # Get sequence length and number of features
     seq_len, feat_dim = ori_data.shape[1], ori_data.shape[2]
 
     # Plot the original data (•) and the samples (x)
@@ -198,7 +201,7 @@ def run_diffusion_model(pre_trained_model, stress_weight, df):
     plt.ylabel("Value")
     plt.title("Original vs Generated Data")
     plt.legend()
-    plt.show()
+    plt.show() """
 
     return samples
 
