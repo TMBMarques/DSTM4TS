@@ -243,3 +243,4 @@ class fMRIDataset(CustomDataset):
         scaler = MinMaxScaler()
         scaler = scaler.fit(data)
         return data, scaler
+    

@@ -17,7 +17,7 @@ import importlib
 
 from pre_trained_models.models import PreTrainedModel
 
-def run_diffusion_model(training, pre_trained_model, stress_weight, loss_forecast, df):
+def run_diffusion_model(training, pre_trained_model, stress_weight, df):
 
     #folder = Path("Checkpoints_room_temperature_72")
 
@@ -76,7 +76,7 @@ def run_diffusion_model(training, pre_trained_model, stress_weight, loss_forecas
 
         # Training model
 
-        trainer.train(stress_weight, loss_forecast)
+        trainer.train(stress_weight)
 
         return
 

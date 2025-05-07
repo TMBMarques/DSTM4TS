@@ -94,7 +94,7 @@ class Trainer(object):
         self.step_classifier = data['step']
         self.milestone_classifier = milestone
 
-    def train(self, stress_weight, loss_forecast):
+    def train(self, stress_weight):
         device = self.device
         step = 0
         if self.logger is not None:
@@ -106,18 +106,10 @@ class Trainer(object):
                 total_loss = 0.
                 for _ in range(self.gradient_accumulate_every):
                     data = next(self.dl).to(device)
-                    """ loss = self.model(data, target=data)
+                    loss = self.model(data, target=data)
                     loss = loss / self.gradient_accumulate_every
                     loss.backward()
-                    total_loss += loss.item() """
-
-                    # Modified loss function for stress testing
-                    loss_diffusion = self.model(data, target=data)
-                    loss_forecast_tensor = torch.tensor(loss_forecast, dtype=torch.float32, device=device) # Ensure loss_forecast is a torch tensor on the same device
-                    loss = (loss_diffusion - stress_weight * loss_forecast_tensor) / self.gradient_accumulate_every # Compute combined loss
-                    loss.backward()
                     total_loss += loss.item()
-
 
                 pbar.set_description(f'loss: {total_loss:.6f}')
 
@@ -254,4 +246,3 @@ class Trainer(object):
             self.logger.log_info('Training done, time: {:.2f}'.format(time.time() - tic))
 
         # return classifier
-

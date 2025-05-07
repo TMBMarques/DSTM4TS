@@ -47,3 +47,22 @@ def run_chronos_bolt(df, horizon_length):
     })
 
     return forecast_df
+
+def run_chronos_bolt_in_diffusion_model(df, horizon_length):
+    pipeline = BaseChronosPipeline.from_pretrained(
+        "amazon/chronos-bolt-tiny",
+        device_map="cpu",  # use "cpu" for CPU inference and "mps" for Apple Silicon
+        torch_dtype=torch.bfloat16,
+    )
+
+    # context must be either a 1D tensor, a list of 1D tensors,
+    # or a left-padded 2D tensor with batch as the first dimension
+    # Chronos-Bolt models generate quantile forecasts, so forecast has shape
+    # [num_series, num_quantiles, prediction_length].
+    forecast = pipeline.predict(
+        context=df, prediction_length=horizon_length
+    )
+
+    median_forecast = forecast[:, 4, :] # Get median quantile 0.5
+
+    return median_forecast

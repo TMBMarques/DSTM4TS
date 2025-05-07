@@ -8,6 +8,9 @@ from tqdm.auto import tqdm
 from functools import partial
 from Models.interpretable_diffusion.transformer import Transformer
 from Models.interpretable_diffusion.model_utils import default, identity, extract
+from Models.interpretable_diffusion.model_utils import unnormalize_to_zero_to_one
+
+from pre_trained_models.chronos_bolt import run_chronos_bolt_in_diffusion_model
 
 
 # gaussian diffusion trainer class
@@ -262,10 +265,53 @@ class Diffusion_TS(nn.Module):
             fourier_loss = self.loss_fn(torch.real(fft1), torch.real(fft2), reduction='none')\
                            + self.loss_fn(torch.imag(fft1), torch.imag(fft2), reduction='none')
             train_loss +=  self.ff_weight * fourier_loss
+
+        # Stress testing modifications
+        stress_weight = 0.95
+
+        if stress_weight > 0:
+            # Make the two tensors left-padded 2D tensor with batch as the first dimension to use with Chronos-Bolt
+            x_start_for_forecasting = x_start.squeeze(-1)
+            """ x_start_for_loss = x_start_for_forecasting """
+            # Get only the first two days from the x_start tensor
+            x_start_for_forecasting = x_start_for_forecasting[:, :-24]
+            # Get only the last day from the x_start tensor
+            """ x_start_for_loss = x_start_for_loss[:, -24:] """
+            
+            forecast_out = run_chronos_bolt_in_diffusion_model(x_start_for_forecasting, 24)
+            """ forecast_loss = self.loss_fn(forecast_out, x_start_for_loss, reduction='none') """
+
+            # Concatenate the forecasted data to the x_start_for_forecasting tensor
+            data_with_forecast = torch.cat([x_start_for_forecasting, forecast_out], dim=1)
+            data_with_forecast = data_with_forecast.unsqueeze(-1)
+
+            forecast_loss = self.loss_fn(data_with_forecast, x_start, reduction='none')
+            train_loss = train_loss - stress_weight * forecast_loss
         
         train_loss = reduce(train_loss, 'b ... -> b (...)', 'mean')
         train_loss = train_loss * extract(self.loss_weight, t, train_loss.shape)
+
+        
+
+        # IDEIA INICIAL
+        # dataset tem de estar normalizado
+        # pegar no x_start (é o x_0) e encontrar essa sequência de 3 dias (window 72) no dataset
+        # ir buscar os 3 dias anteriores ao x_start e o dia a seguir
+        # juntar esses 3 dias aos 3 dias do model_out (aproximações a x_0 feitas pelo modelo)
+        # (as modificações no cenário de execução são feitas nos últimos 2 dias da janela de 3 dias do x_start, no treino acho que são feitas nos 3)
+        # pegar no modelo pre-treinado e fazer a previsao de um dia
+        # obter o loss_forecast calculando o erro entre a previsao e o dia a seguir ao model_out
+
+        # IDEIA ADAPTADA - que pode correr bem ou não, mas como estão os dados e como é feito o treino, é capaz de ser a única opção viável
+        # IDEIA INICIAL NÃO PARECE VIÁVEL - no treino, não se usam masks, nem há índices que se relacionam com o dataset inicial porque há shuffle nos dados
+        # pegar no model_out, tirar-lhe o último dia e mandar para o modelo pre-treinado fazer a previsao
+        # obter a previsao e comparar com o ultimo dia do x_start para obter o erro do forecast
+        """ forecast_loss = self.loss_fn(forecast_pred, future_target)
+        train_loss = train_loss - stress_weight * forecast_loss """
+
         return train_loss.mean()
+
+
 
     def forward(self, x, **kwargs):
         b, c, n, device, feature_size, = *x.shape, x.device, self.feature_size

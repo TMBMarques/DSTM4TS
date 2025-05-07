@@ -19,10 +19,10 @@ model:
 
 solver:
   base_lr: 1.0e-5
-  max_epochs: 300
+  max_epochs: 3000
   results_folder: ./Checkpoints_room_temperature
   gradient_accumulate_every: 2
-  save_cycle: 30  # max_epochs // 10
+  save_cycle: 300  # max_epochs // 10
   ema:
     decay: 0.995
     update_interval: 10

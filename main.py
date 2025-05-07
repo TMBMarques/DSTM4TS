@@ -132,7 +132,7 @@ def main():
     df = load_dataset()
 
     # Get a piece of the dataframe (week) 6864
-    reduced_df = df.iloc[6240:6408].reset_index(drop=True)
+    reduced_df = df.iloc[4658:4826].reset_index(drop=True)
 
     # Get the context (take back the last day that will be forecasted)
     original_context_df = reduced_df.iloc[:-24]
@@ -140,16 +140,20 @@ def main():
     # Get the real last day data
     original_data = reduced_df.tail(24)
 
-    # Run the diffusion model
+    # Diffusion model parameters
     diffusion_model_window = 72
     stress_weight = 0.95
-    loss_forecast = 0
+    train = False
 
-    # Training loop
-    counter = 0
-    while counter < 20:
-        run_diffusion_model(True, PreTrainedModel.CHRONOS_BOLT, stress_weight, loss_forecast, original_context_df.copy())
-        samples = run_diffusion_model(False, PreTrainedModel.CHRONOS_BOLT, stress_weight, loss_forecast, original_context_df.copy())
+    # Train or run the model
+
+    # Train model
+    if train:
+        run_diffusion_model(True, PreTrainedModel.CHRONOS_BOLT, stress_weight, df.copy())
+        
+    # Run model
+    else:
+        samples = run_diffusion_model(False, PreTrainedModel.CHRONOS_BOLT, stress_weight, original_context_df.copy())
 
         # Consolidate modified context (NOTE: this needs to be changed/improved)
         samples = [sample[0] for sample in samples[diffusion_model_window]] # Pick the corresponding window (4th day, modifications happen on 5th and 6th)
@@ -160,32 +164,14 @@ def main():
         original_forecast_df = run_chronos_bolt(original_context_df, horizon_length)
         modified_forecast_df = run_chronos_bolt(modified_context_df, horizon_length)
 
-        # Get forecast loss
-        loss_forecast = get_mse(original_data, modified_forecast_df)
+        # Plot
+        plot_forecast(reduced_df, modified_context_df, original_forecast_df, modified_forecast_df)
 
-        # Delete training checkpoints
-        shutil.rmtree('Checkpoints_room_temperature_72')
-
-
-        counter += 1
-
-    samples = run_diffusion_model(False, PreTrainedModel.CHRONOS_BOLT, stress_weight, loss_forecast, original_context_df.copy())
-
-    # Consolidate modified context (NOTE: this needs to be changed/improved)
-    samples = [sample[0] for sample in samples[diffusion_model_window]] # Pick the corresponding window (4th day, modifications happen on 5th and 6th)
-    modified_context_df = original_context_df.iloc[96:].reset_index(drop=True) # Pick data from the 5th day, where modifications start
-    modified_context_df['y'] = samples[24:] # Ignore the first 24 hours (from 4th day, to only pick the 5th and 6th)
-
-    # Get predictions
-    original_forecast_df = run_chronos_bolt(original_context_df, horizon_length)
-    modified_forecast_df = run_chronos_bolt(modified_context_df, horizon_length)
-
-    # Plot
-    plot_forecast(reduced_df, modified_context_df, original_forecast_df, modified_forecast_df)
-
-    # Get error
-    print(f"Original error: {get_r2(original_data, original_forecast_df)}\n")
-    print(f"Modified error: {get_r2(original_data, modified_forecast_df)}\n")
+        # Get error
+        print(f"(MSE) Original error: {get_mse(original_data, original_forecast_df)}\n")
+        print(f"(MSE) Modified error: {get_mse(original_data, modified_forecast_df)}\n")
+        print(f"(MAE) Original error: {get_mae(original_data, original_forecast_df)}\n")
+        print(f"(MAE) Modified error: {get_mae(original_data, modified_forecast_df)}\n")
     
 
 if __name__ == "__main__":
