@@ -12,6 +12,8 @@ from Models.interpretable_diffusion.model_utils import unnormalize_to_zero_to_on
 
 from pre_trained_models.chronos_bolt import run_chronos_bolt_in_diffusion_model
 
+from config import STRESS_WEIGHT, HORIZON_LENGTH
+
 
 # gaussian diffusion trainer class
 
@@ -267,26 +269,23 @@ class Diffusion_TS(nn.Module):
             train_loss +=  self.ff_weight * fourier_loss
 
         # Stress testing modifications
-        stress_weight = 0.95
-
-        if stress_weight > 0:
+        if STRESS_WEIGHT > 0:
             # Make the two tensors left-padded 2D tensor with batch as the first dimension to use with Chronos-Bolt
             x_start_for_forecasting = x_start.squeeze(-1)
-            """ x_start_for_loss = x_start_for_forecasting """
-            # Get only the first two days from the x_start tensor
-            x_start_for_forecasting = x_start_for_forecasting[:, :-24]
-            # Get only the last day from the x_start tensor
-            """ x_start_for_loss = x_start_for_loss[:, -24:] """
             
-            forecast_out = run_chronos_bolt_in_diffusion_model(x_start_for_forecasting, 24)
-            """ forecast_loss = self.loss_fn(forecast_out, x_start_for_loss, reduction='none') """
+            # Get only the first two days from the x_start tensor
+            x_start_for_forecasting = x_start_for_forecasting[:, :-HORIZON_LENGTH]
+            
+            # Do forecast
+            forecast_out = run_chronos_bolt_in_diffusion_model(x_start_for_forecasting, HORIZON_LENGTH)
 
             # Concatenate the forecasted data to the x_start_for_forecasting tensor
             data_with_forecast = torch.cat([x_start_for_forecasting, forecast_out], dim=1)
             data_with_forecast = data_with_forecast.unsqueeze(-1)
 
+            # Get forecast loss and update train loss
             forecast_loss = self.loss_fn(data_with_forecast, x_start, reduction='none')
-            train_loss = train_loss - stress_weight * forecast_loss
+            train_loss = train_loss - STRESS_WEIGHT * forecast_loss
         
         train_loss = reduce(train_loss, 'b ... -> b (...)', 'mean')
         train_loss = train_loss * extract(self.loss_weight, t, train_loss.shape)

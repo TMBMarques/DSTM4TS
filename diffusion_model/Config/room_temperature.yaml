@@ -19,14 +19,14 @@ model:
 
 solver:
   base_lr: 1.0e-5
-  max_epochs: 3000
+  max_epochs: 5000
   results_folder: ./Checkpoints_room_temperature
   gradient_accumulate_every: 2
-  save_cycle: 300  # max_epochs // 10
+  save_cycle: 500  # max_epochs // 10
   ema:
     decay: 0.995
     update_interval: 10
-  
+
   scheduler:
     target: engine.lr_sch.ReduceLROnPlateauWithWarmup
     params:
@@ -36,8 +36,8 @@ solver:
       threshold: 1.0e-1
       threshold_mode: rel
       warmup_lr: 8.0e-4
-      warmup: 500 
-      verbose: False
+      warmup: 500
+      verbose: false
 
 dataloader:
   train_dataset:
@@ -47,8 +47,8 @@ dataloader:
       proportion: 0.9  # Set to rate < 1 if training conditional generation
       data_root: ./diffusion_model/Data/datasets/room_temperature.csv
       window: 72  # seq_length
-      save2npy: True
-      neg_one_to_one: True
+      save2npy: true
+      neg_one_to_one: true
       seed: 123
       period: train
 
@@ -59,8 +59,8 @@ dataloader:
       proportion: 0.9  # rate
       data_root: ./diffusion_model/Data/datasets/room_temperature.csv
       window: 72  # seq_length
-      save2npy: True
-      neg_one_to_one: True
+      save2npy: true
+      neg_one_to_one: true
       seed: 123
       period: test
       style: separate
@@ -71,4 +71,4 @@ dataloader:
 
   batch_size: 64
   sample_size: 256
-  shuffle: True
+  shuffle: true

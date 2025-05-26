@@ -12,6 +12,8 @@ from torch.optim import Adam
 from torch.nn.utils import clip_grad_norm_
 from Utils.io_utils import instantiate_from_config, get_model_parameters_info
 
+from config import STRESS_WEIGHT
+
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../'))
 
@@ -36,7 +38,7 @@ class Trainer(object):
         self.args, self.config = args, config
         self.logger = logger
 
-        self.results_folder = Path(config['solver']['results_folder'] + f'_{model.seq_length}')
+        self.results_folder = Path(config['solver']['results_folder'] + f'_{model.seq_length}' + f'_stress_{STRESS_WEIGHT}')
         os.makedirs(self.results_folder, exist_ok=True)
 
         start_lr = config['solver'].get('base_lr', 1.0e-4)
@@ -94,7 +96,7 @@ class Trainer(object):
         self.step_classifier = data['step']
         self.milestone_classifier = milestone
 
-    def train(self, stress_weight):
+    def train(self):
         device = self.device
         step = 0
         if self.logger is not None:

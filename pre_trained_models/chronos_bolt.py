@@ -3,7 +3,7 @@ import torch
 import numpy as np
 import pandas as pd
 
-def run_chronos_bolt(df, horizon_length):
+def run_chronos_bolt(df, datetime_column, horizon_length):
     pipeline = BaseChronosPipeline.from_pretrained(
         "amazon/chronos-bolt-tiny",
         device_map="cpu",  # use "cpu" for CPU inference and "mps" for Apple Silicon
@@ -27,7 +27,7 @@ def run_chronos_bolt(df, horizon_length):
 
     # Adjust the structure of the forecast (add IDs and timestamps)
     
-    # Get last timestamp from existing DataFrame
+    """ # Get last timestamp from existing DataFrame
     last_timestamp = df["ds"].iloc[-1]
 
     # Define new start date (next hour)
@@ -37,12 +37,12 @@ def run_chronos_bolt(df, horizon_length):
     date_range = pd.date_range(start=start_date, periods=len(median_forecast), freq='h')
 
     # Create unique IDs (e.g., "id_1", "id_2", ...)
-    unique_ids = [f"id_{i+1}" for i in range(len(median_forecast))]
+    unique_ids = [f"id_{i+1}" for i in range(len(median_forecast))] """
 
     # Create DataFrame
     forecast_df = pd.DataFrame({
-        "unique_id": unique_ids,
-        "ds": date_range,
+        #"unique_id": unique_ids,
+        "ds": datetime_column,
         "y": median_forecast
     })
 

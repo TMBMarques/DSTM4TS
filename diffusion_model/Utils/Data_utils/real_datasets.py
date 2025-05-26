@@ -9,6 +9,8 @@ from torch.utils.data import Dataset
 from Models.interpretable_diffusion.model_utils import normalize_to_neg_one_to_one, unnormalize_to_zero_to_one
 from Utils.masking_utils import noise_mask
 
+from config import DIFFUSION_MODEL_CONTEXT
+
 
 class CustomDataset(Dataset):
     def __init__(
@@ -40,7 +42,7 @@ class CustomDataset(Dataset):
 
         #self.rawdata, self.scaler = self.read_data(data_root, self.name)
 
-        self.df.drop(df.columns[:2], axis=1, inplace=True)
+        self.df.drop(df.columns[0], axis=1, inplace=True)
         self.data = df.values
         self.scaler = MinMaxScaler()
         self.scaler = self.scaler.fit(self.data)
@@ -64,7 +66,7 @@ class CustomDataset(Dataset):
         self.samples = train if period == 'train' else inference
         if period == 'test':
             if generating_samples:
-                self.masking = self.mask_data_cutoff((1/3), seed)
+                self.masking = self.mask_data_context()
             else:    
                 if missing_ratio is not None:
                     self.masking = self.mask_data(seed)
@@ -162,7 +164,7 @@ class CustomDataset(Dataset):
         """Reads a single .csv
         """
         df = pd.read_csv(filepath, header=0)
-        if name == 'etth' or name == 'room_temperature':
+        if name == 'etth' or name == 'room_temperature' or name == 'aluminium_prices' or name == 'lemon_production':
             df.drop(df.columns[0], axis=1, inplace=True)
         data = df.values
         scaler = MinMaxScaler()
@@ -188,23 +190,21 @@ class CustomDataset(Dataset):
         np.random.set_state(st0)
         return masks.astype(bool)
     
-    def mask_data_cutoff(self, cutoff_ratio, seed=2023):
+    def mask_data_context(self):
         masks = np.ones_like(self.samples, dtype=bool)  # All True to start
 
         # Store RNG state
-        st0 = np.random.get_state()
-        np.random.seed(seed)
+        """ st0 = np.random.get_state()
+        np.random.seed(seed) """
 
         for idx in range(self.samples.shape[0]):
             seq_length = self.samples.shape[1]
             feat_dim = self.samples.shape[2]
-            
-            cutoff = int(seq_length * cutoff_ratio)
 
-            # Create a mask with True up to cutoff, then False, and keep last value True
+            # Create a mask with True up to DIFFUSION_MODEL_CONTEXT, then False, and keep last value True
             mask = np.ones((seq_length, feat_dim), dtype=bool)
-            if cutoff < seq_length - 1:
-                mask[cutoff:-1, :] = False
+            if DIFFUSION_MODEL_CONTEXT < seq_length - 1:
+                mask[DIFFUSION_MODEL_CONTEXT:-1, :] = False
             mask[-1, :] = True
 
             masks[idx, :, :] = mask
@@ -212,7 +212,7 @@ class CustomDataset(Dataset):
         if self.save2npy:
             np.save(os.path.join(self.dir, f"{self.name}_masking_{self.window}.npy"), masks)
 
-        np.random.set_state(st0)
+        """ np.random.set_state(st0) """
         return masks
 
     def __getitem__(self, ind):

@@ -16,21 +16,22 @@ from pathlib import Path
 import importlib
 
 from pre_trained_models.models import PreTrainedModel
+from config import TRAIN, DIFFUSION_MODEL_CONFIG_YAML
 
-def run_diffusion_model(training, pre_trained_model, stress_weight, df):
+def run_diffusion_model(df):
 
     #folder = Path("Checkpoints_room_temperature_72")
 
     # Train the model if it was not already trained
 
     #if not folder.exists() or not folder.is_dir() or not any(folder.iterdir()):
-    if training:
+    if TRAIN:
 
         # Build dataset and settings
 
         class Args_Example:
             def __init__(self) -> None:
-                self.config_path = './diffusion_model/Config/room_temperature.yaml'
+                self.config_path = DIFFUSION_MODEL_CONFIG_YAML
                 self.save_dir = './diffusion_model/toy_exp'
                 self.gpu = 0
                 os.makedirs(self.save_dir, exist_ok=True)
@@ -76,7 +77,7 @@ def run_diffusion_model(training, pre_trained_model, stress_weight, df):
 
         # Training model
 
-        trainer.train(stress_weight)
+        trainer.train()
 
         return
 
@@ -85,7 +86,7 @@ def run_diffusion_model(training, pre_trained_model, stress_weight, df):
     class Args_Example:
         def __init__(self) -> None:
             self.gpu = 0
-            self.config_path = './diffusion_model/Config/room_temperature.yaml'
+            self.config_path = DIFFUSION_MODEL_CONFIG_YAML
             self.save_dir = './diffusion_model/toy_exp'
             self.mode = 'infill'
             self.missing_ratio = 0.5
