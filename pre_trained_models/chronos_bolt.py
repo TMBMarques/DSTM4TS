@@ -18,30 +18,12 @@ def run_chronos_bolt(df, datetime_column, horizon_length):
         context=torch.tensor(df["y"]), prediction_length=horizon_length
     )
 
-    """ with open("forecast_output.txt", "w") as f:
-        f.write(str(forecast.tolist())) """
-
     # Retrieve only the median forecast
     forecast_array = np.array(forecast)  # Convert to NumPy array
     median_forecast = forecast_array[0, 4, :]  # 0: first series, 4: median quantile (0.5)
 
-    # Adjust the structure of the forecast (add IDs and timestamps)
-    
-    """ # Get last timestamp from existing DataFrame
-    last_timestamp = df["ds"].iloc[-1]
-
-    # Define new start date (next hour)
-    start_date = last_timestamp + pd.Timedelta(hours=1)
-
-    # Generate hourly timestamps
-    date_range = pd.date_range(start=start_date, periods=len(median_forecast), freq='h')
-
-    # Create unique IDs (e.g., "id_1", "id_2", ...)
-    unique_ids = [f"id_{i+1}" for i in range(len(median_forecast))] """
-
     # Create DataFrame
     forecast_df = pd.DataFrame({
-        #"unique_id": unique_ids,
         "ds": datetime_column,
         "y": median_forecast
     })

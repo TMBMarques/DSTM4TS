@@ -10,10 +10,7 @@ from Models.interpretable_diffusion.transformer import Transformer
 from Models.interpretable_diffusion.model_utils import default, identity, extract
 from Models.interpretable_diffusion.model_utils import unnormalize_to_zero_to_one
 
-from pre_trained_models.chronos_bolt import run_chronos_bolt_in_diffusion_model
-
-from config import STRESS_WEIGHT, HORIZON_LENGTH
-
+from config import STRESS_WEIGHT, HORIZON_LENGTH, PRE_TRAINED_MODEL
 
 # gaussian diffusion trainer class
 
@@ -268,29 +265,47 @@ class Diffusion_TS(nn.Module):
                            + self.loss_fn(torch.imag(fft1), torch.imag(fft2), reduction='none')
             train_loss +=  self.ff_weight * fourier_loss
 
+        # Salvar o train_loss antes do forecast
+        """ train_loss_before_forecast = train_loss.clone().detach() """
+
         # Stress testing modifications
         if STRESS_WEIGHT > 0:
-            # Make the two tensors left-padded 2D tensor with batch as the first dimension to use with Chronos-Bolt
-            x_start_for_forecasting = x_start.squeeze(-1)
+            # Make the two tensors left-padded 2D tensor with batch as the first dimension to use with the pre-trained model
+            model_out_for_forecasting = model_out.squeeze(-1)
             
-            # Get only the first two days from the x_start tensor
-            x_start_for_forecasting = x_start_for_forecasting[:, :-HORIZON_LENGTH]
+            # Get the context for the pre-trained model from the model_out tensor
+            model_out_for_forecasting = model_out_for_forecasting[:, : - HORIZON_LENGTH // 2]
             
             # Do forecast
-            forecast_out = run_chronos_bolt_in_diffusion_model(x_start_for_forecasting, HORIZON_LENGTH)
+            forecast_data = PRE_TRAINED_MODEL.run_forecast_in_diffusion_model(model_out_for_forecasting, HORIZON_LENGTH // 2)
+            print(forecast_data.shape)
+            print(model_out_for_forecasting.shape)
 
-            # Concatenate the forecasted data to the x_start_for_forecasting tensor
-            data_with_forecast = torch.cat([x_start_for_forecasting, forecast_out], dim=1)
+            # Concatenate the forecasted data with the model_out_for_forecasting tensor
+            data_with_forecast = torch.cat([model_out_for_forecasting, forecast_data], dim=1)
             data_with_forecast = data_with_forecast.unsqueeze(-1)
+
+            # Substitute the forecast context from the model_out by the x_start values (so it does not increase the forecast loss)
+            data_with_forecast[:, : HORIZON_LENGTH // 2, :] = x_start[:, : HORIZON_LENGTH // 2, :]
 
             # Get forecast loss and update train loss
             forecast_loss = self.loss_fn(data_with_forecast, x_start, reduction='none')
-            train_loss = train_loss - STRESS_WEIGHT * forecast_loss
+            #train_loss = train_loss - STRESS_WEIGHT * forecast_loss
+            train_loss = train_loss + (10 - forecast_loss) * STRESS_WEIGHT
         
         train_loss = reduce(train_loss, 'b ... -> b (...)', 'mean')
         train_loss = train_loss * extract(self.loss_weight, t, train_loss.shape)
 
-        
+        """ # Guardar num CSV (append mode)
+        forecast_loss_with_weight = forecast_loss * STRESS_WEIGHT
+        log_data = {
+            "train_loss": train_loss_before_forecast.detach().cpu().numpy().flatten(),
+            "forecast_loss": forecast_loss.detach().cpu().numpy().flatten(),
+            "forecast_loss_with_weight": forecast_loss_with_weight.detach().cpu().numpy().flatten(),
+            "total_loss": train_loss.detach().cpu().numpy().flatten()
+        }
+        df = pd.DataFrame(log_data)
+        df.to_csv("loss_log.csv", mode='a', header=not os.path.exists("loss_log.csv"), index=False) """
 
         # IDEIA INICIAL
         # dataset tem de estar normalizado

@@ -108,7 +108,14 @@ model_loaded.load('ts2vec_trained_model.pth')
 
 # ------------------------------ """
 
-
+def print_realism_metrics(real_data, modified_data, mean_data):
+    print("\n Realism Metrics \n")
+    print(f"(Wasserstein) modifications: {get_wasserstein(real_data, modified_data)}\n")
+    print(f"(Wasserstein) mean value: {get_wasserstein(real_data, mean_data)}\n")
+    print(f"(DTW) modifications: {get_dtw(real_data, modified_data)}\n")
+    print(f"(DTW) mean value: {get_dtw(real_data, mean_data)}\n")
+    print(f"(ACF) modifications: {get_acf(real_data, modified_data)}\n")
+    #print(f"(ACF) mean value: {get_acf(real_data, mean_data)}\n")
 
 
 
@@ -143,3 +150,14 @@ def get_rmse(real_data, forecast_data):
 # DISADVANTAGE : doesn’t emphasize large errors
 def get_mae(real_data, forecast_data):
     return mean_absolute_error(real_data, forecast_data)
+
+
+def print_forecast_errors(original_data, original_forecast_data, modified_forecast_data):
+    print("\n Forecast Errors \n")
+    print(f"(MSE) Original error: {get_mse(original_data, original_forecast_data)}\n")
+    print(f"(MSE) Modified error: {get_mse(original_data, modified_forecast_data)}\n")
+    print(f"(RMSE) Original error: {get_rmse(original_data, original_forecast_data)}\n")
+    print(f"(RMSE) Modified error: {get_rmse(original_data, modified_forecast_data)}\n")
+    print(f"(MAE) Original error: {get_mae(original_data, original_forecast_data)}\n")
+    print(f"(MAE) Modified error: {get_mae(original_data, modified_forecast_data)}\n")
+    

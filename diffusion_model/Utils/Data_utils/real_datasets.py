@@ -9,14 +9,12 @@ from torch.utils.data import Dataset
 from Models.interpretable_diffusion.model_utils import normalize_to_neg_one_to_one, unnormalize_to_zero_to_one
 from Utils.masking_utils import noise_mask
 
-from config import DIFFUSION_MODEL_CONTEXT
+from config import SPLIT_TRAIN_TEST_INDEX, DIFFUSION_MODEL_CONTEXT
 
 
 class CustomDataset(Dataset):
     def __init__(
         self, 
-        df,
-        generating_samples,
         name,
         data_root, 
         window=64, 
@@ -33,87 +31,68 @@ class CustomDataset(Dataset):
         mean_mask_length=3
     ):
         super(CustomDataset, self).__init__()
-        self.df = df
         assert period in ['train', 'test'], 'period must be train or test.'
         if period == 'train':
             assert ~(predict_length is not None or missing_ratio is not None), ''
         self.name, self.pred_len, self.missing_ratio = name, predict_length, missing_ratio
         self.style, self.distribution, self.mean_mask_length = style, distribution, mean_mask_length
-
-        #self.rawdata, self.scaler = self.read_data(data_root, self.name)
-
-        self.df.drop(df.columns[0], axis=1, inplace=True)
-        self.data = df.values
-        self.scaler = MinMaxScaler()
-        self.scaler = self.scaler.fit(self.data)
-        
+        self.rawdata, self.scaler = self.read_data(data_root, self.name)
         self.dir = os.path.join(output_dir, 'samples')
         os.makedirs(self.dir, exist_ok=True)
 
         self.window, self.period = window, period
-        self.len, self.var_num = self.data.shape[0], self.data.shape[-1]
+        self.len, self.var_num = self.rawdata.shape[0], self.rawdata.shape[-1]
         self.sample_num_total = max(self.len - self.window + 1, 0)
         self.save2npy = save2npy
         self.auto_norm = neg_one_to_one
 
-        self.data = self.__normalize(self.data)
-
-        if generating_samples:
-            inference = self.__getsamples(self.data, proportion, seed, generating_samples)
-        else:
-            train, inference = self.__getsamples(self.data, proportion, seed, generating_samples)
+        self.data = self.__normalize(self.rawdata)
+        train, inference = self.__getsamples(self.data, proportion, seed)
 
         self.samples = train if period == 'train' else inference
         if period == 'test':
-            if generating_samples:
-                self.masking = self.mask_data_context()
-            else:    
-                if missing_ratio is not None:
-                    self.masking = self.mask_data(seed)
-                elif predict_length is not None:
-                    masks = np.ones(self.samples.shape)
-                    masks[:, -predict_length:, :] = 0
-                    self.masking = masks.astype(bool)
-                else:
-                    raise NotImplementedError()
+            self.masking = self.mask_data_context()
+            """ if missing_ratio is not None:
+                self.masking = self.mask_data(seed)
+            elif predict_length is not None:
+                masks = np.ones(self.samples.shape)
+                masks[:, -predict_length:, :] = 0
+                self.masking = masks.astype(bool)
+            else:
+                raise NotImplementedError() """
         self.sample_num = self.samples.shape[0]
 
-    def __getsamples(self, data, proportion, seed, generating_samples):
+    def __getsamples(self, data, proportion, seed):
         x = np.zeros((self.sample_num_total, self.window, self.var_num))
         for i in range(self.sample_num_total):
             start = i
             end = i + self.window
             x[i, :, :] = data[start:end, :]
 
-        if not generating_samples:
-            train_data, test_data = self.divide(x, proportion, seed)
-
-            if self.save2npy:
-                if 1 - proportion > 0:
-                    np.save(os.path.join(self.dir, f"{self.name}_ground_truth_{self.window}_test.npy"), self.unnormalize(test_data))
-                np.save(os.path.join(self.dir, f"{self.name}_ground_truth_{self.window}_train.npy"), self.unnormalize(train_data))
-                if self.auto_norm:
-                    if 1 - proportion > 0:
-                        np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_test.npy"), unnormalize_to_zero_to_one(test_data))
-                    np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_train.npy"), unnormalize_to_zero_to_one(train_data))
-                else:
-                    if 1 - proportion > 0:
-                        np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_test.npy"), test_data)
-                    np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_train.npy"), train_data)
-
-            return train_data, test_data
+        if SPLIT_TRAIN_TEST_INDEX is None:
+            raise ValueError("SPLIT_TRAIN_TEST_INDEX must have a value.")
+        if SPLIT_TRAIN_TEST_INDEX < self.window:
+            raise ValueError("SPLIT_TRAIN_TEST_INDEX is lower than the window size.")
+        if SPLIT_TRAIN_TEST_INDEX >= self.sample_num_total:
+            raise ValueError("SPLIT_TRAIN_TEST_INDEX is greater than the total number of samples.")
         
+        train_data = x[:SPLIT_TRAIN_TEST_INDEX]
+        test_data = x[SPLIT_TRAIN_TEST_INDEX:SPLIT_TRAIN_TEST_INDEX+1]
+
         if self.save2npy:
             if 1 - proportion > 0:
-                np.save(os.path.join(self.dir, f"{self.name}_ground_truth_{self.window}_test.npy"), self.unnormalize(data))
+                np.save(os.path.join(self.dir, f"{self.name}_ground_truth_{self.window}_test.npy"), self.unnormalize(test_data))
+            np.save(os.path.join(self.dir, f"{self.name}_ground_truth_{self.window}_train.npy"), self.unnormalize(train_data))
             if self.auto_norm:
                 if 1 - proportion > 0:
-                    np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_test.npy"), unnormalize_to_zero_to_one(data))
+                    np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_test.npy"), unnormalize_to_zero_to_one(test_data))
+                np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_train.npy"), unnormalize_to_zero_to_one(train_data))
             else:
                 if 1 - proportion > 0:
-                    np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_test.npy"), data)
+                    np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_test.npy"), test_data)
+                np.save(os.path.join(self.dir, f"{self.name}_norm_truth_{self.window}_train.npy"), train_data)
 
-        return x
+        return train_data, test_data
 
 
     def normalize(self, sq):
@@ -164,7 +143,7 @@ class CustomDataset(Dataset):
         """Reads a single .csv
         """
         df = pd.read_csv(filepath, header=0)
-        if name == 'etth' or name == 'room_temperature' or name == 'aluminium_prices' or name == 'lemon_production':
+        if name == 'etth' or name == 'room_temperature' or name == 'aluminium_prices' or name == 'lemon_production' or name == 'sinewave':
             df.drop(df.columns[0], axis=1, inplace=True)
         data = df.values
         scaler = MinMaxScaler()

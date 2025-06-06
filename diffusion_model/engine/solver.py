@@ -12,7 +12,7 @@ from torch.optim import Adam
 from torch.nn.utils import clip_grad_norm_
 from Utils.io_utils import instantiate_from_config, get_model_parameters_info
 
-from config import STRESS_WEIGHT
+from config import SPLIT_TRAIN_TEST_INDEX, PRE_TRAINED_MODEL, STRESS_WEIGHT
 
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../'))
@@ -38,7 +38,9 @@ class Trainer(object):
         self.args, self.config = args, config
         self.logger = logger
 
-        self.results_folder = Path(config['solver']['results_folder'] + f'_{model.seq_length}' + f'_stress_{STRESS_WEIGHT}')
+        self.results_folder = Path(config['solver']['results_folder'] + f'_window_{model.seq_length}' 
+                                   + f'_index_{SPLIT_TRAIN_TEST_INDEX}' + f'_{PRE_TRAINED_MODEL.label_in_diffusion_model}' 
+                                   + f'_stress_{STRESS_WEIGHT}')
         os.makedirs(self.results_folder, exist_ok=True)
 
         start_lr = config['solver'].get('base_lr', 1.0e-4)
