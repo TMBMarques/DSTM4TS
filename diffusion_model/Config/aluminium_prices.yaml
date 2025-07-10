@@ -19,10 +19,10 @@ model:
 
 solver:
   base_lr: 1.0e-5
-  max_epochs: 30
-  results_folder: ./Checkpoints_aluminium_prices
+  max_epochs: 3000
+  results_folder: ./checkpoints/Checkpoints_aluminium_prices
   gradient_accumulate_every: 2
-  save_cycle: 3    # max_epochs // 10
+  save_cycle: 300  # max_epochs // 10
   ema:
     decay: 0.995
     update_interval: 10

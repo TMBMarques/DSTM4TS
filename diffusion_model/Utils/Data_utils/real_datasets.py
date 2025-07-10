@@ -52,14 +52,6 @@ class CustomDataset(Dataset):
         self.samples = train if period == 'train' else inference
         if period == 'test':
             self.masking = self.mask_data_context()
-            """ if missing_ratio is not None:
-                self.masking = self.mask_data(seed)
-            elif predict_length is not None:
-                masks = np.ones(self.samples.shape)
-                masks[:, -predict_length:, :] = 0
-                self.masking = masks.astype(bool)
-            else:
-                raise NotImplementedError() """
         self.sample_num = self.samples.shape[0]
 
     def __getsamples(self, data, proportion, seed):
@@ -172,10 +164,6 @@ class CustomDataset(Dataset):
     def mask_data_context(self):
         masks = np.ones_like(self.samples, dtype=bool)  # All True to start
 
-        # Store RNG state
-        """ st0 = np.random.get_state()
-        np.random.seed(seed) """
-
         for idx in range(self.samples.shape[0]):
             seq_length = self.samples.shape[1]
             feat_dim = self.samples.shape[2]
@@ -191,7 +179,6 @@ class CustomDataset(Dataset):
         if self.save2npy:
             np.save(os.path.join(self.dir, f"{self.name}_masking_{self.window}.npy"), masks)
 
-        """ np.random.set_state(st0) """
         return masks
 
     def __getitem__(self, ind):
@@ -200,11 +187,12 @@ class CustomDataset(Dataset):
             m = self.masking[ind, :, :]  # (seq_length, feat_dim) boolean array
             return torch.from_numpy(x).float(), torch.from_numpy(m)
         x = self.samples[ind, :, :]  # (seq_length, feat_dim) array
-        return torch.from_numpy(x).float()
+        return torch.from_numpy(x).float(), ind
 
     def __len__(self):
+        if self.period == 'train':
+            return self.sample_num - 2 * self.window # Assure the horizon for the forecast (at the moment HORIZON_LENGTH is equal to the window size)
         return self.sample_num
-    
 
 class fMRIDataset(CustomDataset):
     def __init__(

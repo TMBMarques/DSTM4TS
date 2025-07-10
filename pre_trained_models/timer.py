@@ -1,6 +1,8 @@
 # Timer
 # Hugging Face : https://huggingface.co/thuml/timer-base-84m
 
+
+
 import torch
 import pandas as pd
 from transformers import AutoModelForCausalLM
@@ -12,6 +14,8 @@ def run_timer(df, datetime_column, horizon_length):
     # Prepare input
     seqs = torch.tensor(df['y'].values, dtype=torch.float32).unsqueeze(0)
 
+    print(seqs.shape)
+
     # Generate forecast
     output = model.generate(seqs, max_new_tokens=horizon_length)
 
@@ -22,6 +26,8 @@ def run_timer(df, datetime_column, horizon_length):
     })
 
     return forecast_df
+
+
 
 def run_timer_in_diffusion_model(df, horizon_length):
     # Load pre-trained model

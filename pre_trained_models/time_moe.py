@@ -5,6 +5,8 @@ import torch
 import pandas as pd
 from transformers import AutoModelForCausalLM
 
+
+
 def run_time_moe(df, datetime_column, horizon_length):
     # Load pre-trained model
     model = AutoModelForCausalLM.from_pretrained(
@@ -34,6 +36,8 @@ def run_time_moe(df, datetime_column, horizon_length):
     })
 
     return forecast_df
+
+
 
 def run_time_moe_in_diffusion_model(df, horizon_length):
     # Load pre-trained model

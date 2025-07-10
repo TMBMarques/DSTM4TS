@@ -19,7 +19,7 @@ def main():
     df = df.iloc[SPLIT_TRAIN_TEST_INDEX : SPLIT_TRAIN_TEST_INDEX + DIFFUSION_MODEL_WINDOW + HORIZON_LENGTH].reset_index(drop=True)
 
     # Get the context (remove the data that will be forecasted)
-    original_context_df = df.iloc[:-HORIZON_LENGTH]
+    original_context_df = df.iloc[:-HORIZON_LENGTH].reset_index(drop=True)
 
     # Get the real data that will be forecasted (horizon)
     horizon_df = df.tail(HORIZON_LENGTH).reset_index(drop=True)
@@ -39,8 +39,8 @@ def main():
 
         # Consolidate modified context
         samples = samples.flatten()
-        modified_context_df = original_context_df.iloc[DIFFUSION_MODEL_CONTEXT:].reset_index(drop=True)
-        modified_context_df['y'] = samples[DIFFUSION_MODEL_CONTEXT:]
+        modified_context_df = original_context_df.copy() #original_context_df.iloc[DIFFUSION_MODEL_CONTEXT:].reset_index(drop=True)
+        modified_context_df['y'] = samples #[DIFFUSION_MODEL_CONTEXT:]
 
         # Get predictions
         original_forecast_df = PRE_TRAINED_MODEL.run_forecast(original_context_df, horizon_df['ds'], HORIZON_LENGTH)
@@ -50,6 +50,7 @@ def main():
 
         # Get the multiple data from the modified interval
         modified_interval_original_data = original_context_df.iloc[DIFFUSION_MODEL_CONTEXT:].reset_index(drop=True)['y'].to_numpy()
+        modified_context_df = modified_context_df[DIFFUSION_MODEL_CONTEXT:].reset_index(drop=True)
         modified_interval_modified_data = modified_context_df['y'].to_numpy()
 
         # Get an array with the mean value of the time series to serve as a baseline for realism comparison

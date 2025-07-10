@@ -1,4 +1,4 @@
-# config.py
+# MODEL CONFIGURATION
 
 from enum import Enum
 from pre_trained_models.chronos_bolt import *
@@ -6,23 +6,22 @@ from pre_trained_models.time_moe import *
 from pre_trained_models.timer import *
 
 """ ------- EXECUTION ------- """
-TRAIN = True
+TRAIN = False
 """ ------------------------- """
 
 
 """ -------- DATASET -------- """
 class Dataset(Enum):
-    TEMPERATURE = ("Room Temperature", "./datasets/room_temperature.csv")   # Dimension: Hour
-    PRICES = ("Aluminium Prices", "./datasets/aluminium_prices.csv")        # Dimension: Day
-    PRODUCTION = ("Lemon Production", "./datasets/lemon_production.csv")    # Dimension: Month
-    SINEWAVE = ("Sinewave", "./datasets/sinewave.csv")
+    TEMPERATURE = ("Room Temperature", "./datasets/room_temperature.csv")
+    PRICES = ("Aluminium Prices", "./datasets/aluminium_prices.csv")
+    SINEWAVE = ("Sine Wave", "./datasets/sinewave.csv")
 
     def __init__(self, label, file_path):
         self.label = label
         self.file_path = file_path
 
 DATASET = Dataset.PRICES
-SPLIT_TRAIN_TEST_INDEX = 1660
+SPLIT_TRAIN_TEST_INDEX = 1091
 """ ------------------------- """
 
 
@@ -44,7 +43,7 @@ class PreTrainedModel(Enum):
     def run_forecast_in_diffusion_model(self, df, horizon_length):
         return self.forecast_fn_in_diffusion_model(df, horizon_length)
 
-PRE_TRAINED_MODEL = PreTrainedModel.TIMER
+PRE_TRAINED_MODEL = PreTrainedModel.CHRONOS_BOLT
 """ ------------------------- """
 
 
@@ -52,16 +51,14 @@ PRE_TRAINED_MODEL = PreTrainedModel.TIMER
 HORIZON_LENGTH = 100
 DIFFUSION_MODEL_WINDOW = 100
 DIFFUSION_MODEL_CONTEXT = 50
-STRESS_WEIGHT = 1
-TRAINING_MAX_EPOCHS = 30
+STRESS_WEIGHT = 0
+TRAINING_MAX_EPOCHS = 3000
 BATCH_SIZE = 64
 
 if DATASET == Dataset.TEMPERATURE:
     DIFFUSION_MODEL_CONFIG_YAML = "./diffusion_model/Config/room_temperature.yaml"
 elif DATASET == Dataset.PRICES:
     DIFFUSION_MODEL_CONFIG_YAML = "./diffusion_model/Config/aluminium_prices.yaml"
-elif DATASET == Dataset.PRODUCTION:
-    DIFFUSION_MODEL_CONFIG_YAML = "./diffusion_model/Config/lemon_production.yaml"
 elif DATASET == Dataset.SINEWAVE:
     DIFFUSION_MODEL_CONFIG_YAML = "./diffusion_model/Config/sinewave.yaml"
 """ ------------------------- """

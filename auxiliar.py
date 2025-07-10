@@ -1,7 +1,6 @@
 from ruamel.yaml import YAML
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 import numpy as np
 
 from config import *
@@ -42,85 +41,69 @@ def plot_forecast(df, modified_df, forecast_df, modified_forecast_df):
     ax = plt.gca()
     ax.set_facecolor('#242424')
 
-    # Add vertical date lines
-    for date in df["ds"]:
-        plt.axvline(x=date, color="#1c1c1c", linestyle="-", linewidth=0.5, alpha=0.5)
+    # Generate x-axis indices (0 to 199)
+    x_df = list(range(len(df)))
+    x_modified = list(range(DIFFUSION_MODEL_CONTEXT, DIFFUSION_MODEL_CONTEXT + len(modified_df)))
+    x_forecast = list(range(len(df) - HORIZON_LENGTH, len(df)))
+    x_modified_forecast = list(range(x_modified[-1] + 1, x_modified[-1] + 1 + len(modified_forecast_df)))
 
-    # Add vertical dashed lines
-    plt.axvline(x=modified_df["ds"].iloc[0], color="#545454", linestyle="--", label="Modified Context Start")
-    plt.axvline(x=forecast_df["ds"].iloc[0], color="#545454", linestyle="--", label="Forecast Start")
+    # Add vertical background lines
+    for x in x_df:
+        plt.axvline(x=x, color="#1c1c1c", linestyle="-", linewidth=0.5, alpha=0.5)
 
-    # Plot conection line for modifications
-    last_point_before_modifications = DIFFUSION_MODEL_CONTEXT - 1
+    # Add dashed vertical lines
+    plt.axvline(x=DIFFUSION_MODEL_CONTEXT, color="#545454", linestyle="--", label="Modified Context Start")
+    plt.axvline(x=x_forecast[0], color="#545454", linestyle="--", label="Forecast Start")
+
+    # Plot connection line for modifications
     plt.plot(
-        [df["ds"].iloc[last_point_before_modifications], modified_df["ds"].iloc[0]],
-        [df["y"].iloc[last_point_before_modifications], modified_df["y"].iloc[0]],
-        color="#707070",
-        linewidth=1,
-        alpha=0.5
+        [x_df[DIFFUSION_MODEL_CONTEXT - 1], x_modified[0]],
+        [df["y"].iloc[DIFFUSION_MODEL_CONTEXT - 1], modified_df["y"].iloc[0]],
+        color="#707070", linewidth=1, alpha=0.5
     )
 
-    # Plot conection line for original forecast
-    last_point_before_original_forecast = - HORIZON_LENGTH - 1
+    # Plot connection line for original forecast
     plt.plot(
-        [df["ds"].iloc[last_point_before_original_forecast], forecast_df["ds"].iloc[0]],
-        [df["y"].iloc[last_point_before_original_forecast], forecast_df["y"].iloc[0]],
-        color="#707070",
-        linewidth=1,
-        alpha=0.5
+        [x_df[-HORIZON_LENGTH - 1], x_forecast[0]],
+        [df["y"].iloc[-HORIZON_LENGTH - 1], forecast_df["y"].iloc[0]],
+        color="#707070", linewidth=1, alpha=0.5
     )
 
-    # Plot conection line for original forecast
+    # Plot connection line for modified forecast
     plt.plot(
-        [modified_df["ds"].iloc[-1], modified_forecast_df["ds"].iloc[0]],
+        [x_modified[-1], x_modified_forecast[0]],
         [modified_df["y"].iloc[-1], modified_forecast_df["y"].iloc[0]],
-        color="#EC9F05",
-        linewidth=1,
-        alpha=0.5
+        color="#EC9F05", linewidth=1, alpha=0.5
     )
 
     # Plot original data
-    plt.plot(df["ds"], df["y"], label="Original Data", color="#707070", linestyle="-")
-    plt.scatter(df["ds"], df["y"], color="#707070", s=5)
+    plt.plot(x_df, df["y"], label="Original Data", color="#707070", linestyle="-")
 
     # Plot modified context
-    plt.plot(modified_df["ds"], modified_df["y"], label="Modified Context", color="#EC9F05", linestyle="-")
-    plt.scatter(modified_df["ds"], modified_df["y"], color="#EC9F05", s=5)
+    plt.plot(x_modified, modified_df["y"], label="Modified Context", color="#EC9F05", linestyle="-")
 
     # Plot original forecast
-    plt.plot(forecast_df["ds"], forecast_df["y"], label="Original Forecast", color="#1098F7", linestyle="-")
-    plt.scatter(forecast_df["ds"], forecast_df["y"], color="#1098F7", s=5)
+    plt.plot(x_forecast, forecast_df["y"], label="Original Forecast", color="#1098F7", linestyle="-")
 
     # Plot modified forecast
-    plt.plot(modified_forecast_df["ds"], modified_forecast_df["y"], label="Modified Forecast", color="#BF3100", linestyle="-")
-    plt.scatter(modified_forecast_df["ds"], modified_forecast_df["y"], color="#BF3100", s=5)
+    plt.plot(x_modified_forecast, modified_forecast_df["y"], label="Modified Forecast", color="#BF3100", linestyle="-")
 
-    # Format x-axis with more detailed dates
-    ax = plt.gca()
-    ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d-%m-%Y"))
-    plt.xticks(rotation=45)
-    plt.tight_layout(rect=[0.015, -0.05, 1, 0.9])
+    # Format x-axis as step indices
+    plt.xticks(ticks=range(0, len(df) + 1, 20))
+    plt.xlabel("t")
+    plt.ylabel("y", rotation=0)
 
-
-    # Labels and legend
-    plt.xlabel("Datetime")
-    plt.ylabel("Value")
-    plt.xticks(rotation=0)
-    highlight = f"$\\bf{{{DATASET.label} \ with\ a\ stress\ weight\ of\ {STRESS_WEIGHT}}}$"
+    # Titles and legend
+    highlight = f"$\\bf{{{DATASET.label} \ in\ {SPLIT_TRAIN_TEST_INDEX} \ with\ a\ stress\ weight\ of\ {STRESS_WEIGHT} \ in\ {PRE_TRAINED_MODEL.label}}}$"
     main_title = f"Original Data vs Modified Context and Forecasts for {highlight}"
-    subtitle = "(training maximum epochs = {} | batch size = {})\n".format(TRAINING_MAX_EPOCHS, BATCH_SIZE)
-
-    plt.suptitle(main_title, fontsize=12)  # Título principal
-    plt.title(subtitle, fontsize=9)        # Parte menor (abaixo do principal)
+    plt.title(main_title, pad=15)
     plt.legend()
-
-    # Show the plot
+    plt.tight_layout()
     plt.show()
 
 
 
-def create_sinusoidal_wave_csv(file_name='sinewave.csv', total_rows=1000, repetitions_per_50=3):
+def create_sinewave_csv(file_name='sinewave.csv', total_rows=1000, repetitions_per_50=3):
     # Configuration
     timesteps = np.arange(total_rows)  # from 0 to 999
     period = 50 / repetitions_per_50   # How many timesteps per full sine cycle

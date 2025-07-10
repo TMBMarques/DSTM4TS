@@ -10,6 +10,8 @@ from Models.interpretable_diffusion.model_utils import unnormalize_to_zero_to_on
 
 from config import TRAIN, DIFFUSION_MODEL_CONFIG_YAML
 
+
+
 def run_diffusion_model():
     # Train model
     
@@ -79,6 +81,7 @@ def run_diffusion_model():
     samples = dataset.scaler.inverse_transform(samples.reshape(-1, samples.shape[-1])).reshape(samples.shape)
 
     return samples
+
 
 
 if __name__ == '__main__':

@@ -20,7 +20,7 @@ model:
 solver:
   base_lr: 1.0e-5
   max_epochs: 3000
-  results_folder: ./Checkpoints_sinewave
+  results_folder: ./checkpoints/Checkpoints_sinewave
   gradient_accumulate_every: 2
   save_cycle: 300  # max_epochs // 10
   ema:

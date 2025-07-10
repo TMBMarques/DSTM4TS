@@ -8,9 +8,9 @@ from tqdm.auto import tqdm
 from functools import partial
 from Models.interpretable_diffusion.transformer import Transformer
 from Models.interpretable_diffusion.model_utils import default, identity, extract
-from Models.interpretable_diffusion.model_utils import unnormalize_to_zero_to_one
 
-from config import STRESS_WEIGHT, HORIZON_LENGTH, PRE_TRAINED_MODEL
+from config import STRESS_WEIGHT
+from pre_trained_models.auxiliar import get_forecast_loss_in_diffusion_model
 
 # gaussian diffusion trainer class
 
@@ -246,7 +246,7 @@ class Diffusion_TS(nn.Module):
                 extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
         )
 
-    def _train_loss(self, x_start, t, target=None, noise=None, padding_masks=None):
+    def _train_loss(self, x_start, t, target=None, noise=None, padding_masks=None, batch_indices=None, dataset=None):
         noise = default(noise, lambda: torch.randn_like(x_start))
         if target is None:
             target = x_start
@@ -265,63 +265,19 @@ class Diffusion_TS(nn.Module):
                            + self.loss_fn(torch.imag(fft1), torch.imag(fft2), reduction='none')
             train_loss +=  self.ff_weight * fourier_loss
 
-        # Salvar o train_loss antes do forecast
-        """ train_loss_before_forecast = train_loss.clone().detach() """
-
         # Stress testing modifications
         if STRESS_WEIGHT > 0:
-            # Make the two tensors left-padded 2D tensor with batch as the first dimension to use with the pre-trained model
-            model_out_for_forecasting = model_out.squeeze(-1)
-            
-            # Get the context for the pre-trained model from the model_out tensor
-            model_out_for_forecasting = model_out_for_forecasting[:, : - HORIZON_LENGTH // 2]
-            
-            # Do forecast
-            forecast_data = PRE_TRAINED_MODEL.run_forecast_in_diffusion_model(model_out_for_forecasting, HORIZON_LENGTH // 2)
-            print(forecast_data.shape)
-            print(model_out_for_forecasting.shape)
+            # Get future data to compare to the forecasted data   
+            horizon_data = torch.stack([
+                torch.from_numpy(dataset.samples[idx.item() + self.seq_length])
+                for idx in batch_indices
+            ]).float().to(x_start.device)
 
-            # Concatenate the forecasted data with the model_out_for_forecasting tensor
-            data_with_forecast = torch.cat([model_out_for_forecasting, forecast_data], dim=1)
-            data_with_forecast = data_with_forecast.unsqueeze(-1)
-
-            # Substitute the forecast context from the model_out by the x_start values (so it does not increase the forecast loss)
-            data_with_forecast[:, : HORIZON_LENGTH // 2, :] = x_start[:, : HORIZON_LENGTH // 2, :]
-
-            # Get forecast loss and update train loss
-            forecast_loss = self.loss_fn(data_with_forecast, x_start, reduction='none')
-            #train_loss = train_loss - STRESS_WEIGHT * forecast_loss
+            forecast_loss = get_forecast_loss_in_diffusion_model(x_start.squeeze(-1), model_out.squeeze(-1), horizon_data.squeeze(-1))
             train_loss = train_loss + (10 - forecast_loss) * STRESS_WEIGHT
         
         train_loss = reduce(train_loss, 'b ... -> b (...)', 'mean')
         train_loss = train_loss * extract(self.loss_weight, t, train_loss.shape)
-
-        """ # Guardar num CSV (append mode)
-        forecast_loss_with_weight = forecast_loss * STRESS_WEIGHT
-        log_data = {
-            "train_loss": train_loss_before_forecast.detach().cpu().numpy().flatten(),
-            "forecast_loss": forecast_loss.detach().cpu().numpy().flatten(),
-            "forecast_loss_with_weight": forecast_loss_with_weight.detach().cpu().numpy().flatten(),
-            "total_loss": train_loss.detach().cpu().numpy().flatten()
-        }
-        df = pd.DataFrame(log_data)
-        df.to_csv("loss_log.csv", mode='a', header=not os.path.exists("loss_log.csv"), index=False) """
-
-        # IDEIA INICIAL
-        # dataset tem de estar normalizado
-        # pegar no x_start (é o x_0) e encontrar essa sequência de 3 dias (window 72) no dataset
-        # ir buscar os 3 dias anteriores ao x_start e o dia a seguir
-        # juntar esses 3 dias aos 3 dias do model_out (aproximações a x_0 feitas pelo modelo)
-        # (as modificações no cenário de execução são feitas nos últimos 2 dias da janela de 3 dias do x_start, no treino acho que são feitas nos 3)
-        # pegar no modelo pre-treinado e fazer a previsao de um dia
-        # obter o loss_forecast calculando o erro entre a previsao e o dia a seguir ao model_out
-
-        # IDEIA ADAPTADA - que pode correr bem ou não, mas como estão os dados e como é feito o treino, é capaz de ser a única opção viável
-        # IDEIA INICIAL NÃO PARECE VIÁVEL - no treino, não se usam masks, nem há índices que se relacionam com o dataset inicial porque há shuffle nos dados
-        # pegar no model_out, tirar-lhe o último dia e mandar para o modelo pre-treinado fazer a previsao
-        # obter a previsao e comparar com o ultimo dia do x_start para obter o erro do forecast
-        """ forecast_loss = self.loss_fn(forecast_pred, future_target)
-        train_loss = train_loss - stress_weight * forecast_loss """
 
         return train_loss.mean()
 

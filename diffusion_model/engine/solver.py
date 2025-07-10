@@ -33,6 +33,7 @@ class Trainer(object):
         self.save_cycle = config['solver']['save_cycle']
         self.dl = cycle(dataloader['dataloader'])
         self.dataloader = dataloader['dataloader']
+        self.dataset = dataloader['dataset']
         self.step = 0
         self.milestone = 0
         self.args, self.config = args, config
@@ -109,8 +110,19 @@ class Trainer(object):
             while step < self.train_num_steps:
                 total_loss = 0.
                 for _ in range(self.gradient_accumulate_every):
-                    data = next(self.dl).to(device)
-                    loss = self.model(data, target=data)
+
+                    batch = next(self.dl)
+
+                    if isinstance(batch, (list, tuple)) and len(batch) == 2:
+                        data, indices = batch
+                        data, indices = data.to(device), indices.to(device)
+                    else:
+                        data = batch.to(device)
+                        indices = None
+
+                    loss = self.model(data, target=data, batch_indices=indices, dataset=self.dataset)
+
+
                     loss = loss / self.gradient_accumulate_every
                     loss.backward()
                     total_loss += loss.item()
